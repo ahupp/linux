@@ -210,6 +210,47 @@ static void fuse_stat_to_attr(struct fuse_conn *fc, struct inode *inode,
 	attr->blksize = 1 << blkbits;
 }
 
+ssize_t fuse_backing_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	int ret;
+	struct fuse_file *ff = file->private_data;
+	struct inode *fuse_inode = file_inode(file);
+	struct file *backing_file = ff->backing_file;
+	struct inode *backing_inode = file_inode(backing_file);
+	struct timespec64 mtime, bmtime, ctime, bctime;
+
+	if (!backing_file->f_op->mmap)
+		return -ENODEV;
+
+	if (WARN_ON(file != vma->vm_file))
+		return -EIO;
+
+	vma->vm_file = get_file(backing_file);
+
+	ret = call_mmap(vma->vm_file, vma);
+
+	if (ret)
+		fput(backing_file);
+	else
+		fput(file);
+
+	if (file->f_flags & O_NOATIME)
+		return ret;
+
+	mtime = inode_get_mtime(fuse_inode);
+	bmtime = inode_get_mtime(backing_inode);
+	ctime = inode_get_ctime(fuse_inode);
+	bctime = inode_get_ctime(backing_inode);
+	if ((!timespec64_equal(&mtime, &bmtime) ||
+	     !timespec64_equal(&ctime, &bctime))) {
+		inode_set_mtime_to_ts(fuse_inode, bmtime);
+		inode_set_ctime_to_ts(fuse_inode, bctime);
+	}
+	touch_atime(&file->f_path);
+
+	return ret;
+}
+
 /*******************************************************************************
  * Directory operations after here                                             *
  ******************************************************************************/
