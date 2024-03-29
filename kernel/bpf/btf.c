@@ -26,6 +26,7 @@
 #include <linux/bsearch.h>
 #include <linux/kobject.h>
 #include <linux/sysfs.h>
+#include <linux/bpf_fuse.h>
 
 #include <net/netfilter/nf_bpf_link.h>
 

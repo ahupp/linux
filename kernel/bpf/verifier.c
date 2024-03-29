@@ -10947,6 +10947,8 @@ enum special_kfunc_type {
 	KF_bpf_percpu_obj_drop_impl,
 	KF_bpf_throw,
 	KF_bpf_iter_css_task_new,
+	KF_bpf_fuse_get_rw_dynptr,
+	KF_bpf_fuse_get_ro_dynptr,
 };
 
 BTF_SET_START(special_kfunc_set)
@@ -10973,6 +10975,8 @@ BTF_ID(func, bpf_throw)
 #ifdef CONFIG_CGROUPS
 BTF_ID(func, bpf_iter_css_task_new)
 #endif
+BTF_ID(func, bpf_fuse_get_rw_dynptr)
+BTF_ID(func, bpf_fuse_get_ro_dynptr)
 BTF_SET_END(special_kfunc_set)
 
 BTF_ID_LIST(special_kfunc_list)
@@ -11003,6 +11007,8 @@ BTF_ID(func, bpf_iter_css_task_new)
 #else
 BTF_ID_UNUSED
 #endif
+BTF_ID(func, bpf_fuse_get_rw_dynptr)
+BTF_ID(func, bpf_fuse_get_ro_dynptr)
 
 static bool is_kfunc_ret_null(struct bpf_kfunc_call_arg_meta *meta)
 {
@@ -11793,7 +11799,9 @@ static int check_kfunc_args(struct bpf_verifier_env *env, struct bpf_kfunc_call_
 					verbose(env, "verifier internal error: missing ref obj id for parent of clone\n");
 					return -EFAULT;
 				}
-			}
+			} else if (meta->func_id == special_kfunc_list[KF_bpf_fuse_get_rw_dynptr] ||
+					meta->func_id == special_kfunc_list[KF_bpf_fuse_get_ro_dynptr])
+				dynptr_arg_type |= DYNPTR_TYPE_LOCAL;
 
 			ret = process_dynptr_func(env, regno, insn_idx, dynptr_arg_type, clone_ref_obj_id);
 			if (ret < 0)
