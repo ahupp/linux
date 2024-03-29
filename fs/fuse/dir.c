@@ -10,6 +10,7 @@
 
 #include <linux/pagemap.h>
 #include <linux/file.h>
+#include <linux/filter.h>
 #include <linux/fs_context.h>
 #include <linux/moduleparam.h>
 #include <linux/sched.h>
@@ -202,6 +203,7 @@ static bool backing_data_changed(struct fuse_inode *fi, struct dentry *entry,
 {
 	struct path new_backing_path;
 	struct inode *new_backing_inode;
+	struct fuse_ops *ops = NULL;
 	int err;
 	bool ret = true;
 
@@ -216,9 +218,15 @@ static bool backing_data_changed(struct fuse_inode *fi, struct dentry *entry,
 	if (err)
 		goto put_inode;
 
-	ret = (fi->backing_inode != new_backing_inode ||
-			!path_equal(&get_fuse_dentry(entry)->backing_path, &new_backing_path));
+	err = fuse_handle_bpf_ops(bpf_arg, entry->d_parent->d_inode, &ops);
+	if (err)
+		goto put_bpf;
 
+	ret = (ops != fi->bpf_ops || fi->backing_inode != new_backing_inode ||
+			!path_equal(&get_fuse_dentry(entry)->backing_path, &new_backing_path));
+put_bpf:
+	if (ops)
+		put_fuse_ops(ops);
 put_inode:
 	path_put(&new_backing_path);
 	return ret;
@@ -486,6 +494,13 @@ int fuse_lookup_name(struct super_block *sb, u64 nodeid,
 		*inode = fuse_iget_backing(sb, outarg->nodeid, backing_inode);
 		if (!*inode)
 			goto out_queue_forget;
+
+		err = fuse_handle_bpf_ops(&bpf_arg, NULL, &get_fuse_inode(*inode)->bpf_ops);
+		if (err) {
+			iput(*inode);
+			*inode = NULL;
+			goto out_put_forget;
+		}
 	} else
 #endif
 	{
