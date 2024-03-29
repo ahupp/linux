@@ -3392,6 +3392,7 @@ int fuse_bpf_access(int *out, struct inode *inode, int mask)
 
 int __init fuse_bpf_init(void)
 {
+	init_fuse_bpf();
 	fuse_bpf_aio_request_cachep = kmem_cache_create("fuse_bpf_aio_req",
 						   sizeof(struct fuse_bpf_aio_req),
 						   0, SLAB_HWCACHE_ALIGN, NULL);
@@ -3403,5 +3404,6 @@ int __init fuse_bpf_init(void)
 
 void __exit fuse_bpf_cleanup(void)
 {
+	uninit_fuse_bpf();
 	kmem_cache_destroy(fuse_bpf_aio_request_cachep);
 }
