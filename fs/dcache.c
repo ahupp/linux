@@ -16,6 +16,7 @@
  */
 
 #include <linux/ratelimit.h>
+#include <linux/bpf_dentry_storage.h>
 #include <linux/string.h>
 #include <linux/mm.h>
 #include <linux/fs.h>
@@ -361,6 +362,7 @@ static inline void __d_clear_type_and_inode(struct dentry *dentry)
 
 static void dentry_free(struct dentry *dentry)
 {
+	bpf_dentry_storage_free(dentry);
 	WARN_ON(!hlist_unhashed(&dentry->d_u.d_alias));
 	if (unlikely(dname_external(dentry))) {
 		struct external_name *p = external_name(dentry);
@@ -1668,6 +1670,9 @@ static struct dentry *__d_alloc(struct super_block *sb, const struct qstr *name)
 	dentry->d_sb = sb;
 	dentry->d_op = NULL;
 	dentry->d_fsdata = NULL;
+#ifdef CONFIG_BPF_SYSCALL
+	RCU_INIT_POINTER(dentry->d_bpf_storage, NULL);
+#endif
 	INIT_HLIST_BL_NODE(&dentry->d_hash);
 	INIT_LIST_HEAD(&dentry->d_lru);
 	INIT_HLIST_HEAD(&dentry->d_children);

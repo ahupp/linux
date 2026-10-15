@@ -96,6 +96,9 @@ struct dentry {
 	struct super_block *d_sb;	/* The root of the dentry tree */
 	unsigned long d_time;		/* used by d_revalidate */
 	void *d_fsdata;			/* fs-specific data */
+#ifdef CONFIG_BPF_SYSCALL
+	struct bpf_local_storage __rcu *d_bpf_storage;
+#endif
 
 	union {
 		struct list_head d_lru;		/* LRU list */

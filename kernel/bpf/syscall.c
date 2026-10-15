@@ -1058,6 +1058,7 @@ static int map_check_btf(struct bpf_map *map, struct bpf_token *token,
 				    map->map_type != BPF_MAP_TYPE_CGROUP_STORAGE &&
 				    map->map_type != BPF_MAP_TYPE_SK_STORAGE &&
 				    map->map_type != BPF_MAP_TYPE_INODE_STORAGE &&
+				    map->map_type != BPF_MAP_TYPE_DENTRY_STORAGE &&
 				    map->map_type != BPF_MAP_TYPE_TASK_STORAGE &&
 				    map->map_type != BPF_MAP_TYPE_CGRP_STORAGE) {
 					ret = -EOPNOTSUPP;
@@ -1084,6 +1085,7 @@ static int map_check_btf(struct bpf_map *map, struct bpf_token *token,
 				    map->map_type != BPF_MAP_TYPE_PERCPU_ARRAY &&
 				    map->map_type != BPF_MAP_TYPE_SK_STORAGE &&
 				    map->map_type != BPF_MAP_TYPE_INODE_STORAGE &&
+				    map->map_type != BPF_MAP_TYPE_DENTRY_STORAGE &&
 				    map->map_type != BPF_MAP_TYPE_TASK_STORAGE &&
 				    map->map_type != BPF_MAP_TYPE_CGRP_STORAGE) {
 					ret = -EOPNOTSUPP;
@@ -1237,6 +1239,7 @@ static int map_create(union bpf_attr *attr)
 		break;
 	case BPF_MAP_TYPE_SK_STORAGE:
 	case BPF_MAP_TYPE_INODE_STORAGE:
+	case BPF_MAP_TYPE_DENTRY_STORAGE:
 	case BPF_MAP_TYPE_TASK_STORAGE:
 	case BPF_MAP_TYPE_CGRP_STORAGE:
 	case BPF_MAP_TYPE_BLOOM_FILTER:

@@ -547,6 +547,7 @@ static bool is_storage_get_function(enum bpf_func_id func_id)
 {
 	return func_id == BPF_FUNC_sk_storage_get ||
 	       func_id == BPF_FUNC_inode_storage_get ||
+	       func_id == BPF_FUNC_dentry_storage_get ||
 	       func_id == BPF_FUNC_task_storage_get ||
 	       func_id == BPF_FUNC_cgrp_storage_get;
 }
@@ -8950,6 +8951,12 @@ static int check_map_func_compatibility(struct bpf_verifier_env *env,
 		    func_id != BPF_FUNC_kptr_xchg)
 			goto error;
 		break;
+	case BPF_MAP_TYPE_DENTRY_STORAGE:
+		if (func_id != BPF_FUNC_dentry_storage_get &&
+		    func_id != BPF_FUNC_dentry_storage_delete &&
+		    func_id != BPF_FUNC_kptr_xchg)
+			goto error;
+		break;
 	case BPF_MAP_TYPE_INODE_STORAGE:
 		if (func_id != BPF_FUNC_inode_storage_get &&
 		    func_id != BPF_FUNC_inode_storage_delete &&
@@ -9068,6 +9075,11 @@ static int check_map_func_compatibility(struct bpf_verifier_env *env,
 	case BPF_FUNC_sk_storage_get:
 	case BPF_FUNC_sk_storage_delete:
 		if (map->map_type != BPF_MAP_TYPE_SK_STORAGE)
+			goto error;
+		break;
+	case BPF_FUNC_dentry_storage_get:
+	case BPF_FUNC_dentry_storage_delete:
+		if (map->map_type != BPF_MAP_TYPE_DENTRY_STORAGE)
 			goto error;
 		break;
 	case BPF_FUNC_inode_storage_get:
@@ -18092,6 +18104,7 @@ static int check_map_prog_compatibility(struct bpf_verifier_env *env,
 		case BPF_MAP_TYPE_RINGBUF:
 		case BPF_MAP_TYPE_USER_RINGBUF:
 		case BPF_MAP_TYPE_INODE_STORAGE:
+		case BPF_MAP_TYPE_DENTRY_STORAGE:
 		case BPF_MAP_TYPE_SK_STORAGE:
 		case BPF_MAP_TYPE_TASK_STORAGE:
 		case BPF_MAP_TYPE_CGRP_STORAGE:

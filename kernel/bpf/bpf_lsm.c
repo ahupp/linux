@@ -205,6 +205,10 @@ bpf_lsm_func_proto(enum bpf_func_id func_id, const struct bpf_prog *prog)
 	}
 
 	switch (func_id) {
+	case BPF_FUNC_dentry_storage_get:
+		return &bpf_dentry_storage_get_proto;
+	case BPF_FUNC_dentry_storage_delete:
+		return &bpf_dentry_storage_delete_proto;
 	case BPF_FUNC_inode_storage_get:
 		return &bpf_inode_storage_get_proto;
 	case BPF_FUNC_inode_storage_delete:

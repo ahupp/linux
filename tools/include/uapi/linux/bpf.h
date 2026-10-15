@@ -1009,6 +1009,7 @@ enum bpf_map_type {
 	BPF_MAP_TYPE_BLOOM_FILTER,
 	BPF_MAP_TYPE_USER_RINGBUF,
 	BPF_MAP_TYPE_CGRP_STORAGE,
+	BPF_MAP_TYPE_DENTRY_STORAGE,
 	__MAX_BPF_MAP_TYPE
 };
 
@@ -5768,6 +5769,23 @@ union bpf_attr {
  *		0 on success.
  *
  *		**-ENOENT** if the bpf_local_storage cannot be found.
+ *
+ * void *bpf_dentry_storage_get(struct bpf_map *map, struct dentry *dentry, void *value, u64 flags)
+ *	Description
+ *		Get storage associated with a positive or negative *dentry*.
+ *		The map must have type **BPF_MAP_TYPE_DENTRY_STORAGE**.
+ *		**BPF_LOCAL_STORAGE_GET_F_CREATE** creates missing storage,
+ *		initialized from *value*, or to zero when *value* is NULL.
+ *		Creation requires a referenced dentry in the callback context.
+ *		Storage is released when the map or dentry is destroyed.
+ *	Return
+ *		Pointer to the value, or NULL on lookup or allocation failure.
+ *
+ * long bpf_dentry_storage_delete(struct bpf_map *map, struct dentry *dentry)
+ *	Description
+ *		Delete the storage associated with *map* on *dentry*.
+ *	Return
+ *		Zero on success, or a negative error if no storage exists.
  */
 #define ___BPF_FUNC_MAPPER(FN, ctx...)			\
 	FN(unspec, 0, ##ctx)				\
@@ -5982,6 +6000,8 @@ union bpf_attr {
 	FN(user_ringbuf_drain, 209, ##ctx)		\
 	FN(cgrp_storage_get, 210, ##ctx)		\
 	FN(cgrp_storage_delete, 211, ##ctx)		\
+	FN(dentry_storage_get, 212, ##ctx)		\
+	FN(dentry_storage_delete, 213, ##ctx)		\
 	/* */
 
 /* backwards-compatibility macros for users of __BPF_FUNC_MAPPER that don't
