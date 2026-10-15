@@ -57,6 +57,12 @@ struct bpf_fuse_meta_info {
 	uint64_t nodeid;
 	uint32_t opcode;
 	uint32_t error_in;
+	/* Borrowed referenced objects, valid only during this callback. */
+	struct dentry *dentry;
+	struct inode *inode;
+	uint64_t backing_dev;
+	uint64_t backing_ino;
+	char basename[96];
 	uint32_t error_out; // TODO: struct_op programs may set this to alter reported error code
 };
 
@@ -84,6 +90,18 @@ static inline unsigned bpf_fuse_arg_size(const struct bpf_fuse_arg *arg)
 {
 	return arg->is_buffer ? arg->buffer->size : arg->size;
 }
+
+/* Observations for data paths which do not pass through read_iter/write_iter.
+ * source: 1 = mmap capability, 2 = splice, 3 = copy_file_range.
+ * access: 1 = read, 2 = write. mmap observations describe possible access.
+ */
+struct bpf_fuse_io_event {
+	uint64_t offset;
+	uint64_t length;
+	int64_t result;
+	uint32_t access;
+	uint32_t source;
+};
 
 struct fuse_ops {
 	uint32_t (*default_filter)(const struct bpf_fuse_meta_info *meta);
@@ -270,6 +288,9 @@ struct fuse_ops {
 				struct fuse_access_in *in);
 	uint32_t (*access_postfilter)(const struct bpf_fuse_meta_info *meta,
 				const struct fuse_access_in *in);
+
+	uint32_t (*io_observe)(const struct bpf_fuse_meta_info *meta,
+			       const struct bpf_fuse_io_event *event);
 
 	char name[BPF_FUSE_NAME_MAX];
 };

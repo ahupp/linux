@@ -3,6 +3,7 @@
 
 #include <linux/filter.h>
 #include <linux/bpf.h>
+#include <linux/bpf_lsm.h>
 #include <linux/bpf_fuse.h>
 #include <linux/bpf_verifier.h>
 #include <linux/btf.h>
@@ -102,6 +103,18 @@ static const struct bpf_func_proto *bpf_fuse_get_func_proto(enum bpf_func_id fun
 							      const struct bpf_prog *prog)
 {
 	switch (func_id) {
+#ifdef CONFIG_BPF_LSM
+	case BPF_FUNC_inode_storage_get:
+		return &bpf_inode_storage_get_proto;
+	case BPF_FUNC_inode_storage_delete:
+		return &bpf_inode_storage_delete_proto;
+#endif
+	case BPF_FUNC_dentry_storage_get:
+		return &bpf_dentry_storage_get_proto;
+	case BPF_FUNC_dentry_storage_delete:
+		return &bpf_dentry_storage_delete_proto;
+	case BPF_FUNC_get_current_pid_tgid:
+		return &bpf_get_current_pid_tgid_proto;
 	default:
 		return bpf_base_func_proto(func_id, prog);
 	}
@@ -623,7 +636,14 @@ static uint32_t bpf_fuse_access_postfilter(const struct bpf_fuse_meta_info *meta
 	return 0;
 }
 
+static uint32_t bpf_fuse_io_observe(const struct bpf_fuse_meta_info *meta,
+				  const struct bpf_fuse_io_event *event)
+{
+	return 0;
+}
+
 static struct fuse_ops __bpf_fuse_ops = {
+	.io_observe = bpf_fuse_io_observe,
 	.default_filter = bpf_fuse_default_filter,
 	.open_prefilter = bpf_fuse_open_prefilter,
 	.open_postfilter = bpf_fuse_open_postfilter,

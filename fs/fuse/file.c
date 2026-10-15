@@ -2517,9 +2517,21 @@ static int fuse_file_mmap(struct file *file, struct vm_area_struct *vma)
 		return fuse_dax_mmap(file, vma);
 
 #ifdef CONFIG_FUSE_BPF
-	/* TODO - this is simply passthrough, not a proper BPF filter */
-	if (ff->backing_file)
-		return fuse_backing_mmap(file, vma);
+	if (ff->backing_file) {
+		int ret = fuse_backing_mmap(file, vma);
+
+		if (!ret) {
+			if (vma->vm_flags & VM_MAYREAD)
+				fuse_bpf_observe_io(file, 1, 1,
+					(loff_t)vma->vm_pgoff << PAGE_SHIFT,
+					vma->vm_end - vma->vm_start, 0);
+			if ((vma->vm_flags & VM_SHARED) && (vma->vm_flags & VM_MAYWRITE))
+				fuse_bpf_observe_io(file, 2, 1,
+					(loff_t)vma->vm_pgoff << PAGE_SHIFT,
+					vma->vm_end - vma->vm_start, 0);
+		}
+		return ret;
+	}
 #endif
 
 	if (ff->open_flags & FOPEN_DIRECT_IO) {
@@ -3271,6 +3283,25 @@ static ssize_t fuse_copy_file_range(struct file *src_file, loff_t src_off,
 	return ret;
 }
 
+static ssize_t fuse_file_splice_read(struct file *file, loff_t *ppos,
+				     struct pipe_inode_info *pipe, size_t len,
+				     unsigned int flags)
+{
+#ifdef CONFIG_FUSE_BPF
+	struct fuse_file *ff = file->private_data;
+
+	if (ff->backing_file) {
+		loff_t offset = *ppos;
+		ssize_t ret = vfs_splice_read(ff->backing_file, ppos, pipe, len, flags);
+
+		if (ret >= 0)
+			fuse_bpf_observe_io(file, 1, 2, offset, len, ret);
+		return ret;
+	}
+#endif
+	return filemap_splice_read(file, ppos, pipe, len, flags);
+}
+
 static const struct file_operations fuse_file_operations = {
 	.llseek		= fuse_file_llseek,
 	.read_iter	= fuse_file_read_iter,
@@ -3283,7 +3314,7 @@ static const struct file_operations fuse_file_operations = {
 	.lock		= fuse_file_lock,
 	.get_unmapped_area = thp_get_unmapped_area,
 	.flock		= fuse_file_flock,
-	.splice_read	= filemap_splice_read,
+	.splice_read	= fuse_file_splice_read,
 	.splice_write	= iter_file_splice_write,
 	.unlocked_ioctl	= fuse_file_ioctl,
 	.compat_ioctl	= fuse_file_compat_ioctl,

@@ -16,6 +16,42 @@
 #include <linux/splice.h>
 #include <linux/uio.h>
 
+/* Capture object identity without exposing mutable name pointers to BPF. */
+static void fuse_bpf_set_meta(struct bpf_fuse_meta_info *info,
+			      struct dentry *dentry, struct inode *inode)
+{
+	info->dentry = dentry;
+	info->inode = inode;
+	if (inode) {
+		info->backing_dev = inode->i_sb->s_dev;
+		info->backing_ino = inode->i_ino;
+	}
+	if (dentry) {
+		spin_lock(&dentry->d_lock);
+		strscpy(info->basename, dentry->d_name.name, sizeof(info->basename));
+		spin_unlock(&dentry->d_lock);
+	}
+}
+
+void fuse_bpf_observe_io(struct file *file, u32 access, u32 source,
+			 loff_t offset, size_t length, ssize_t result)
+{
+	struct fuse_file *ff = file->private_data;
+	struct fuse_ops *ops = get_fuse_inode(file_inode(file))->bpf_ops;
+	struct bpf_fuse_meta_info meta = {};
+	struct bpf_fuse_io_event event = {
+		.offset = offset, .length = length, .result = result,
+		.access = access, .source = source,
+	};
+
+	if (!ops || !ops->io_observe || !ff || !ff->backing_file)
+		return;
+	fuse_bpf_set_meta(&meta, file->f_path.dentry, file_inode(ff->backing_file));
+	rcu_read_lock();
+	ops->io_observe(&meta, &event);
+	rcu_read_unlock();
+}
+
 static void set_in_args(struct fuse_in_arg *dst, struct bpf_fuse_arg *src)
 {
 	if (src->is_buffer) {
@@ -595,6 +631,8 @@ static int fuse_open_initialize_in(struct bpf_fuse_args *fa, struct fuse_open_ar
 		},
 	};
 
+	fuse_bpf_set_meta(&fa->info, file->f_path.dentry,
+			  get_fuse_inode(inode)->backing_inode);
 	return 0;
 }
 
@@ -751,6 +789,7 @@ static int fuse_create_open_initialize_in(struct bpf_fuse_args *fa, struct fuse_
 		},
 	};
 
+	fuse_bpf_set_meta(&fa->info, entry, NULL);
 	return 0;
 }
 
@@ -871,6 +910,9 @@ static int fuse_create_open_backing(struct bpf_fuse_args *fa, int *out,
 	inode = NULL;
 	entry = newent ? newent : entry;
 	*out = finish_open(file, entry, fuse_open_file_backing);
+	if (!*out)
+		fuse_bpf_set_meta(&fa->info, file->f_path.dentry,
+			file_inode(((struct fuse_file *)file->private_data)->backing_file));
 
 out:
 	iput(inode);
@@ -1256,6 +1298,11 @@ static int fuse_copy_file_range_backing(struct bpf_fuse_args *fa, ssize_t *out, 
 					   fci->off_out, fci->len, fci->flags);
 	else
 		*out = splice_copy_file_range(file_in, pos_in, file_out, pos_out, len);
+	if (*out >= 0) {
+		fuse_bpf_observe_io(file_in, 1, 3, pos_in, len, *out);
+		if (backing_file_out)
+			fuse_bpf_observe_io(file_out, 2, 3, pos_out, len, *out);
+	}
 	return 0;
 }
 
@@ -1894,6 +1941,7 @@ static int fuse_file_read_iter_initialize_in(struct bpf_fuse_args *fa, struct fu
 		 */
 	};
 
+	fuse_bpf_set_meta(&fa->info, file->f_path.dentry, file_inode(ff->backing_file));
 	return 0;
 }
 
@@ -2036,6 +2084,7 @@ static int fuse_file_write_iter_initialize_in(struct bpf_fuse_args *fa,
 		.in_args[0].value = &args->in,
 	};
 
+	fuse_bpf_set_meta(&fa->info, file->f_path.dentry, file_inode(ff->backing_file));
 	return 0;
 }
 
@@ -2184,10 +2233,12 @@ ssize_t fuse_backing_mmap(struct file *file, struct vm_area_struct *vma)
 
 	ret = call_mmap(vma->vm_file, vma);
 
-	if (ret)
+	if (ret) {
 		fput(backing_file);
-	else
+		vma->vm_file = file;
+	} else {
 		fput(file);
+	}
 
 	if (file->f_flags & O_NOATIME)
 		return ret;
@@ -2318,6 +2369,7 @@ static int fuse_lookup_initialize_in(struct bpf_fuse_args *fa, struct fuse_looku
 		},
 	};
 
+	fuse_bpf_set_meta(&fa->info, entry, NULL);
 	return 0;
 }
 
@@ -3193,6 +3245,8 @@ static int fuse_unlink_initialize_in(struct bpf_fuse_args *fa, struct fuse_buffe
 		},
 	};
 
+	fuse_bpf_set_meta(&fa->info, entry,
+		d_inode(get_fuse_dentry(entry)->backing_path.dentry));
 	return 0;
 }
 

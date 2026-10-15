@@ -1724,6 +1724,8 @@ long fuse_backing_ioctl(struct file *file, unsigned int command, unsigned long a
 
 int fuse_file_flock_backing(struct file *file, int cmd, struct file_lock *fl);
 ssize_t fuse_backing_mmap(struct file *file, struct vm_area_struct *vma);
+void fuse_bpf_observe_io(struct file *file, u32 access, u32 source,
+			 loff_t offset, size_t length, ssize_t result);
 
 int fuse_handle_backing(struct fuse_bpf_entry *fbe, struct path *backing_path);
 int fuse_handle_bpf_ops(struct fuse_bpf_entry *fbe, struct inode *parent,
