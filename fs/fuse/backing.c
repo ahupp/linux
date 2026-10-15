@@ -2622,6 +2622,25 @@ struct fuse_mknod_args {
 	struct fuse_buffer name;
 };
 
+static struct inode *fuse_iget_child_backing(struct inode *dir,
+					   struct inode *backing_inode)
+{
+	struct fuse_bpf_entry inherit = {};
+	struct inode *inode;
+	int error;
+
+	inode = fuse_iget_backing(dir->i_sb, 0, backing_inode);
+	if (!inode)
+		return ERR_PTR(-ENOMEM);
+	error = fuse_handle_bpf_ops(&inherit, dir,
+				    &get_fuse_inode(inode)->bpf_ops);
+	if (error) {
+		iput(inode);
+		return ERR_PTR(error);
+	}
+	return inode;
+}
+
 static int fuse_mknod_initialize_in(struct bpf_fuse_args *fa, struct fuse_mknod_args *args,
 				    struct inode *dir, struct dentry *entry, umode_t mode, dev_t rdev)
 {
@@ -2709,7 +2728,7 @@ static int fuse_mknod_backing(struct bpf_fuse_args *fa, int *out,
 		 */
 		goto out;
 	}
-	inode = fuse_iget_backing(dir->i_sb, fuse_inode->nodeid, backing_inode);
+	inode = fuse_iget_child_backing(dir, d_inode(backing_path.dentry));
 	if (IS_ERR(inode)) {
 		*out = PTR_ERR(inode);
 		goto out;
@@ -2814,7 +2833,7 @@ static int fuse_mkdir_backing(struct bpf_fuse_args *fa, int *out,
 		dput(backing_path.dentry);
 		backing_path.dentry = d;
 	}
-	inode = fuse_iget_backing(dir->i_sb, fuse_inode->nodeid, backing_inode);
+	inode = fuse_iget_child_backing(dir, d_inode(backing_path.dentry));
 	if (IS_ERR(inode)) {
 		*out = PTR_ERR(inode);
 		goto out;
@@ -3419,7 +3438,7 @@ static int fuse_link_backing(struct bpf_fuse_args *fa, int *out, struct dentry *
 		goto out;
 	}
 
-	fuse_new_inode = fuse_iget_backing(dir->i_sb, fuse_dir_inode->nodeid, backing_dir_inode);
+	fuse_new_inode = fuse_iget_child_backing(dir, d_inode(backing_new_path.dentry));
 	if (IS_ERR(fuse_new_inode)) {
 		*out = PTR_ERR(fuse_new_inode);
 		goto out;
@@ -4013,7 +4032,7 @@ static int fuse_symlink_backing(struct bpf_fuse_args *fa, int *out,
 		 */
 		goto out;
 	}
-	inode = fuse_iget_backing(dir->i_sb, fuse_inode->nodeid, backing_inode);
+	inode = fuse_iget_child_backing(dir, d_inode(backing_path.dentry));
 	if (IS_ERR(inode)) {
 		*out = PTR_ERR(inode);
 		goto out;
