@@ -425,6 +425,8 @@ static int v9fs_vfs_mkdir_dotl(struct mnt_idmap *idmap,
 			err = PTR_ERR(inode);
 			goto error;
 		}
+		inode->i_ino = v9fs_qid2ino(&qid);
+		V9FS_I(inode)->qid = qid;
 		v9fs_set_create_acl(inode, fid, dacl, pacl);
 		d_instantiate(dentry, inode);
 	}
@@ -764,6 +766,8 @@ v9fs_vfs_symlink_dotl(struct mnt_idmap *idmap, struct inode *dir,
 			err = PTR_ERR(inode);
 			goto error;
 		}
+		inode->i_ino = v9fs_qid2ino(&qid);
+		V9FS_I(inode)->qid = qid;
 		d_instantiate(dentry, inode);
 	}
 
@@ -912,6 +916,9 @@ v9fs_vfs_mknod_dotl(struct mnt_idmap *idmap, struct inode *dir,
 			err = PTR_ERR(inode);
 			goto error;
 		}
+		/* Stacking filesystems need the QID even without metadata caching. */
+		inode->i_ino = v9fs_qid2ino(&qid);
+		V9FS_I(inode)->qid = qid;
 		v9fs_set_create_acl(inode, fid, dacl, pacl);
 		d_instantiate(dentry, inode);
 	}
